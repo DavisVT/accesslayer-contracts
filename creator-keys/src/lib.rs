@@ -843,6 +843,10 @@ pub mod constants {
             DataKey::Referrer(referee.clone())
         }
 
+        pub fn referral_settled(buyer: &Address) -> DataKey {
+            DataKey::ReferralSettled(buyer.clone())
+        }
+
         pub fn quorum_bps(creator: &Address) -> DataKey {
             DataKey::QuorumBps(creator.clone())
         }
@@ -5817,42 +5821,37 @@ impl CreatorKeysContract {
             .get(&constants::storage::LP_CONTRACT_ADDRESS);
 
         let net_amount = if let Some(lp_address) = lp_contract {
-            // Skip if LP address is zero (disabled)
-            if lp_address == Address::from([0u8; 32]) {
-                net_amount
-            } else {
-                let lp_allocation_bps: u32 = env
-                    .storage()
-                    .persistent()
-                    .get(&constants::storage::LP_ALLOCATION_BPS)
-                    .unwrap_or(0);
+            let lp_allocation_bps: u32 = env
+                .storage()
+                .persistent()
+                .get(&constants::storage::LP_ALLOCATION_BPS)
+                .unwrap_or(0);
 
-                if lp_allocation_bps > 0 {
-                    let lp_allocation = fee::apply_percentage_fee(net_amount, lp_allocation_bps)
-                        .ok_or(ContractError::Overflow)?;
+            if lp_allocation_bps > 0 {
+                let lp_allocation = fee::apply_percentage_fee(net_amount, lp_allocation_bps)
+                    .ok_or(ContractError::Overflow)?;
 
-                    if lp_allocation > 0 {
-                        // Forward allocation to LP contract
-                        // Note: In Soroban, we can't directly transfer to another contract
-                        // without invoking it. For now, we'll emit the event and the
-                        // allocation can be claimed by the LP contract or handled externally.
-                        env.events().publish(
-                            events::lp_allocation_sent_topics(&lp_address),
-                            events::LpAllocationSentEvent {
-                                lp_contract: lp_address.clone(),
-                                amount: lp_allocation,
-                                ledger: env.ledger().sequence(),
-                            },
-                        );
+                if lp_allocation > 0 {
+                    // Forward allocation to LP contract
+                    // Note: In Soroban, we can't directly transfer to another contract
+                    // without invoking it. For now, we'll emit the event and the
+                    // allocation can be claimed by the LP contract or handled externally.
+                    env.events().publish(
+                        events::lp_allocation_sent_topics(&lp_address),
+                        events::LpAllocationSentEvent {
+                            lp_contract: lp_address.clone(),
+                            amount: lp_allocation,
+                            ledger: env.ledger().sequence(),
+                        },
+                    );
 
-                        fee::checked_sub_i128(net_amount, lp_allocation)
-                            .ok_or(ContractError::Overflow)?
-                    } else {
-                        net_amount
-                    }
+                    fee::checked_sub_i128(net_amount, lp_allocation)
+                        .ok_or(ContractError::Overflow)?
                 } else {
                     net_amount
                 }
+            } else {
+                net_amount
             }
         } else {
             net_amount

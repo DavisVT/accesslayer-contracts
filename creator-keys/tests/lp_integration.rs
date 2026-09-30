@@ -1,5 +1,5 @@
-use creator_keys::{CreatorKeysContract, CreatorKeysContractClient};
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use creator_keys::{CreatorKeysContract, CreatorKeysContractClient, RegisterCreatorParams};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 #[test]
 fn test_set_lp_contract_address_succeeds_for_admin() {
@@ -133,49 +133,22 @@ fn test_lp_hook_skipped_when_address_not_set() {
     client.set_key_price(&admin, &1000i128);
     client.set_fee_config(&admin, &9000u32, &1000u32);
     client.register_creator(
-        &creator,
-        &creator,
-        &String::from_str(&env, "test"),
-        &String::from_str(&env, "TST"),
-        &None,
+        &RegisterCreatorParams {
+            creator: creator.clone(),
+            handle: String::from_str(&env, "test"),
+        },
+        &None, // locked_allocation
+        &None, // max_supply
+        &None, // max_keys_per_wallet
+        &None, // curve_preset
+        &None, // co_creator
+        &None, // whitelist
     );
 
     // Set allocation but no LP address - hook should be skipped
     client.set_lp_allocation_bps(&admin, &1000u32);
 
     // Buy should succeed without LP event
-    let result = client.buy_key(&creator, &buyer, &1000i128, &None);
+    let result = client.try_buy_key(&creator, &buyer, &1000i128, &None);
     assert!(result.is_ok(), "buy should succeed when LP address not set");
-}
-
-#[test]
-fn test_lp_hook_skipped_when_address_is_zero() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(CreatorKeysContract, ());
-    let client = CreatorKeysContractClient::new(&env, &contract_id);
-
-    let admin = Address::generate(&env);
-    let creator = Address::generate(&env);
-    let buyer = Address::generate(&env);
-    let zero_address = Address::from([0u8; 32]);
-
-    client.set_protocol_admin(&admin, &admin);
-    client.set_key_price(&admin, &1000i128);
-    client.set_fee_config(&admin, &9000u32, &1000u32);
-    client.register_creator(
-        &creator,
-        &creator,
-        &String::from_str(&env, "test"),
-        &String::from_str(&env, "TST"),
-        &None,
-    );
-
-    // Set LP address to zero (disabled) and allocation
-    client.set_lp_contract_address(&admin, &zero_address);
-    client.set_lp_allocation_bps(&admin, &1000u32);
-
-    // Buy should succeed without LP event
-    let result = client.buy_key(&creator, &buyer, &1000i128, &None);
-    assert!(result.is_ok(), "buy should succeed when LP address is zero");
 }
