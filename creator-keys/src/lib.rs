@@ -5815,7 +5815,7 @@ impl CreatorKeysContract {
             .storage()
             .persistent()
             .get(&constants::storage::LP_CONTRACT_ADDRESS);
-        
+
         let net_amount = if let Some(lp_address) = lp_contract {
             // Skip if LP address is zero (disabled)
             if lp_address == Address::from([0u8; 32]) {
@@ -5826,11 +5826,11 @@ impl CreatorKeysContract {
                     .persistent()
                     .get(&constants::storage::LP_ALLOCATION_BPS)
                     .unwrap_or(0);
-                
+
                 if lp_allocation_bps > 0 {
                     let lp_allocation = fee::apply_percentage_fee(net_amount, lp_allocation_bps)
                         .ok_or(ContractError::Overflow)?;
-                    
+
                     if lp_allocation > 0 {
                         // Forward allocation to LP contract
                         // Note: In Soroban, we can't directly transfer to another contract
@@ -5844,7 +5844,7 @@ impl CreatorKeysContract {
                                 ledger: env.ledger().sequence(),
                             },
                         );
-                        
+
                         fee::checked_sub_i128(net_amount, lp_allocation)
                             .ok_or(ContractError::Overflow)?
                     } else {
